@@ -16,23 +16,33 @@
  * <zlbytes> <zltail> <zllen> <entry> <entry> ... <entry> <zlend>
  *
  * NOTE: all fields are stored in little endian, if not specified otherwise.
+ * 如果没有特别说明，所有字段以小端字节存储。
  *
  * <uint32_t zlbytes> is an unsigned integer to hold the number of bytes that
  * the ziplist occupies, including the four bytes of the zlbytes field itself.
  * This value needs to be stored to be able to resize the entire structure
  * without the need to traverse it first.
+ * zlbytes记录整个压缩列表占用的内存字节数（包括它自己的4字节）
+ * 在对压缩列表进行内存重分配，或者计算zlend的位置时使用。
+ * 作用：无需遍历就可以重分配
  *
  * <uint32_t zltail> is the offset to the last entry in the list. This allows
  * a pop operation on the far side of the list without the need for full
  * traversal.
+ * zltail记录压缩列表表未结点距离压缩列表的起始地址有多少偏移字节。
+ * 无需遍历既可以确定表尾结点的地址
  *
  * <uint16_t zllen> is the number of entries. When there are more than
  * 2^16-2 entries, this value is set to 2^16-1 and we need to traverse the
  * entire list to know how many items it holds.
+ * zllen 记录了压缩列表包含的节点数量：
+ * 当这个属性的值小于UINT16_MAX时， 这个属性的值就是压缩类别包含节点的数量；
+ * 当等于UINT16_MAX时，节点的真实数量需要遍历整个压缩列表才能计算得出
  *
  * <uint8_t zlend> is a special entry representing the end of the ziplist.
  * Is encoded as a single byte equal to 255. No other normal entry starts
  * with a byte set to the value of 255.
+ * 特殊值0xFF（十进制255），用于标记压缩列表的末端
  *
  * ZIPLIST ENTRIES
  * ===============
@@ -58,6 +68,7 @@
  * is greater than or equal to 254, it will consume 5 bytes. The first byte is
  * set to 254 (FE) to indicate a larger value is following. The remaining 4
  * bytes take the length of the previous entry as value.
+ * < 254， 1字节；>=254，5字节，第一个字节固定0xFE（254）
  *
  * So practically an entry is encoded in the following way:
  *
@@ -76,7 +87,7 @@
  * what kind of integer will be stored after this header. An overview of the
  * different types and encodings is as follows. The first byte is always enough
  * to determine the kind of entry.
- *
+ * 字节数组编码
  * |00pppppp| - 1 byte
  *      String value with length less than or equal to 63 bytes (6 bits).
  *      "pppppp" represents the unsigned 6 bit length.
@@ -89,6 +100,7 @@
  *      up to 2^32-1. The 6 lower bits of the first byte are not used and
  *      are set to zero.
  *      IMPORTANT: The 32 bit number is stored in big endian.
+ * 整数编码 
  * |11000000| - 3 bytes
  *      Integer encoded as int16_t (2 bytes).
  * |11010000| - 5 bytes
@@ -270,22 +282,30 @@
 /* We use this function to receive information about a ziplist entry.
  * Note that this is not how the data is actually encoded, is just what we
  * get filled by a function in order to operate more easily. */
+ // 压缩列表节点
 typedef struct zlentry {
+    // 前一个元素长度需要的空间
     unsigned int prevrawlensize; /* Bytes used to encode the previous entry len*/
+    // 前一个元素长度
     unsigned int prevrawlen;     /* Previous entry len. */
+    // 元素长度需要的空间
     unsigned int lensize;        /* Bytes used to encode this entry type/len.
                                     For example strings have a 1, 2 or 5 bytes
                                     header. Integers always use a single byte.*/
+    // 元素长度
     unsigned int len;            /* Bytes used to represent the actual entry.
                                     For strings this is just the string length
                                     while for integers it is 1, 2, 3, 4, 8 or
                                     0 (for 4 bit immediate) depending on the
                                     number range. */
+    // 头部长度，即prevrawlensize + lensize
     unsigned int headersize;     /* prevrawlensize + lensize. */
+    // 编码： ZIP_STR_* 或ZIP_INT_*
     unsigned char encoding;      /* Set to ZIP_STR_* or ZIP_INT_* depending on
                                     the entry encoding. However for 4 bits
                                     immediate integers this can assume a range
                                     of values and must be range-checked. */
+    // 元素实际内容
     unsigned char *p;            /* Pointer to the very start of the entry, that
                                     is, this points to prev-entry-len field. */
 } zlentry;
@@ -908,6 +928,11 @@ unsigned char *__ziplistDelete(unsigned char *zl, unsigned char *p, unsigned int
     return zl;
 }
 
+/*
+可能引起连锁更新
+1. 压缩列表里要恰好有多个连续的、长度介于250字节至253字节之间的结点，连锁更新此案有可能被引发，在实际中，这种情况并不多
+2. 即使出现连锁更新，但只要被更新的节点数量不多，就不会对性能造成任何影响：比如说，对三五个节点进行连锁更新是绝对不会影响性能的
+*/
 /* Insert item at "p". */
 unsigned char *__ziplistInsert(unsigned char *zl, unsigned char *p, unsigned char *s, unsigned int slen) {
     size_t curlen = intrev32ifbe(ZIPLIST_BYTES(zl)), reqlen, newlen;

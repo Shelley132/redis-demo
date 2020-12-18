@@ -153,21 +153,28 @@ static uint8_t intsetSearch(intset *is, int64_t value, uint32_t *pos) {
         return 0;
     }
 }
-
 /* Upgrades the intset to a larger encoding and inserts the given integer. */
+/* 升级
+1. 根据新元素的类型，扩展整数集合底层数据大小，并为新元素分配空间
+2. 将底层数组现有的所有元素都转换成与新元素相同的类型，
+并将类型转换后的元素放置在正确的位上，而且在放置元素的过程中，需要继续维持底层数据的有序性质不变
+3. 把新元素添加到底层数据里面
+*/
 static intset *intsetUpgradeAndAdd(intset *is, int64_t value) {
-    uint8_t curenc = intrev32ifbe(is->encoding);
+    // 根据值来计算encoding
     uint8_t newenc = _intsetValueEncoding(value);
     int length = intrev32ifbe(is->length);
     int prepend = value < 0 ? 1 : 0;
 
     /* First set new encoding and resize */
+    // 首先设置新的encoding并扩容底层数据
     is->encoding = intrev32ifbe(newenc);
-    is = intsetResize(is,intrev32ifbe(is->length)+1);
+    is = intsetResize(is, intrev32ifbe(is->length) + 1);
 
     /* Upgrade back-to-front so we don't overwrite values.
      * Note that the "prepend" variable is used to make sure we have an empty
      * space at either the beginning or the end of the intset. */
+    // 从后向前升级，这样就不会覆盖值
     while(length--)
         _intsetSet(is,length+prepend,_intsetGetEncoded(is,length,curenc));
 

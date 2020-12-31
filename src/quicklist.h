@@ -44,13 +44,21 @@
  * attempted_compress: 1 bit, boolean, used for verifying during testing.
  * extra: 10 bits, free for future use; pads out the remainder of 32 bits */
 typedef struct quicklistNode {
+    // 指向链表前一个节点的指针
     struct quicklistNode *prev;
+    // 指向链表后一个节点的指针
     struct quicklistNode *next;
+    // 数据指针。如果没有压缩，指向的ziplist；否则指向quicklistLZF
     unsigned char *zl;
+    // zl指向的ziplist的总大小
     unsigned int sz;             /* ziplist size in bytes */
+    // 表示ziplist里面包含的数据项个数
     unsigned int count : 16;     /* count of items in ziplist */
+    // ziplist是否压缩了；2被压缩，1未压缩
     unsigned int encoding : 2;   /* RAW==1 or LZF==2 */
+    // 预留字段
     unsigned int container : 2;  /* NONE==1 or ZIPLIST==2 */
+    // 当我们使用类似lindex这样的命令查看了某一项本来压缩的数据时，需要把数据暂时解压，这时就设置recompress=1做一个标记，等有机会再把数据重新压缩。
     unsigned int recompress : 1; /* was this node previous compressed? */
     unsigned int attempted_compress : 1; /* node can't compress; too small */
     unsigned int extra : 10; /* more bits to steal for future usage */

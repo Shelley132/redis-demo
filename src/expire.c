@@ -504,18 +504,20 @@ void expireGenericCommand(client *c, long long basetime, int unit) {
     if (getLongLongFromObjectOrReply(c, param, &when, NULL) != C_OK)
         return;
 
+    // 时间单位为秒，转换为毫秒
     if (unit == UNIT_SECONDS) when *= 1000;
     when += basetime;
 
     /* No key, return zero. */
+    // 没有找到键，返回0
     if (lookupKeyWrite(c->db,key) == NULL) {
         addReply(c,shared.czero);
         return;
     }
-
+    // 检查是否已经过期
     if (checkAlreadyExpired(when)) {
         robj *aux;
-
+        // 已过期，删除
         int deleted = server.lazyfree_lazy_expire ? dbAsyncDelete(c->db,key) :
                                                     dbSyncDelete(c->db,key);
         serverAssertWithInfo(c,key,deleted);
@@ -529,6 +531,7 @@ void expireGenericCommand(client *c, long long basetime, int unit) {
         addReply(c, shared.cone);
         return;
     } else {
+        // 未过期，设置过期时间
         setExpire(c,c->db,key,when);
         addReply(c,shared.cone);
         signalModifiedKey(c,c->db,key);
@@ -563,20 +566,26 @@ void ttlGenericCommand(client *c, int output_ms) {
     long long expire, ttl = -1;
 
     /* If the key does not exist at all, return -2 */
+    // 键不存在，返回-2
     if (lookupKeyReadWithFlags(c->db,c->argv[1],LOOKUP_NOTOUCH) == NULL) {
         addReplyLongLong(c,-2);
         return;
     }
     /* The key exists. Return -1 if it has no expire, or the actual
      * TTL value otherwise. */
+    // 键存在，但没有过期时间，返回-1；否则返回真实的TTL值
     expire = getExpire(c->db,c->argv[1]);
     if (expire != -1) {
+        // 过期时间不等于-1，计算过期时间与当前时间的差值
         ttl = expire-mstime();
         if (ttl < 0) ttl = 0;
     }
+
     if (ttl == -1) {
+        // ttl等于-1，即没有过期时间
         addReplyLongLong(c,-1);
     } else {
+        // ttl不等于-1，返回对应的ttl时间
         addReplyLongLong(c,output_ms ? ttl : ((ttl+500)/1000));
     }
 }
@@ -593,16 +602,21 @@ void pttlCommand(client *c) {
 
 /* PERSIST key */
 void persistCommand(client *c) {
+
     if (lookupKeyWrite(c->db,c->argv[1])) {
+        // 键存在
         if (removeExpire(c->db,c->argv[1])) {
+            // 移除过期字典中给定键的键值对关联
             signalModifiedKey(c,c->db,c->argv[1]);
             notifyKeyspaceEvent(NOTIFY_GENERIC,"persist",c->argv[1],c->db->id);
             addReply(c,shared.cone);
             server.dirty++;
         } else {
+            // 键没有设置过期时间返回0
             addReply(c,shared.czero);
         }
     } else {
+        // 键不存在
         addReply(c,shared.czero);
     }
 }

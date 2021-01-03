@@ -1492,6 +1492,7 @@ int keyIsExpired(redisDb *db, robj *key) {
  * The return value of the function is 0 if the key is still valid,
  * otherwise the function returns 1 if the key is expired. */
 int expireIfNeeded(redisDb *db, robj *key) {
+    // 如果键未过期，直接返回0
     if (!keyIsExpired(db,key)) return 0;
 
     /* If we are running in the context of a slave, instead of
@@ -1502,13 +1503,22 @@ int expireIfNeeded(redisDb *db, robj *key) {
      * Still we try to return the right information to the caller,
      * that is, 0 if we think the key should be still valid, 1 if
      * we think the key is expired at this time. */
+    // 如果正在从库运行，就不是从数据库中清除过期键。
+    // 从库的键过期是由主库控制的，主库会将过期键的删除操作发送给从库。
+    // 0表示我们认为这个键依然有效；1则表示我们认为这个键此时已过期
     if (server.masterhost != NULL) return 1;
 
     /* Delete the key */
+    // 删除键
+    // 过期键统计字段更新
     server.stat_expiredkeys++;
+    // 命令传播，到 slave 和 AOF
     propagateExpire(db,key,server.lazyfree_lazy_expire);
+    // 键空间通知使得客户端可以通过订阅频道或模式，
+    // 来接收那些以某种方式改动了Redis数据集的事件。
     notifyKeyspaceEvent(NOTIFY_EXPIRED,
         "expired",key,db->id);
+    // 如果时惰性删除，调用dbAsyncDelete，否则调用doSyncDelete
     int retval = server.lazyfree_lazy_expire ? dbAsyncDelete(db,key) :
                                                dbSyncDelete(db,key);
     if (retval) signalModifiedKey(NULL,db,key);

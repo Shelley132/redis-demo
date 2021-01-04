@@ -930,7 +930,9 @@ typedef struct client {
 } client;
 
 struct saveparam {
+    // 秒数
     time_t seconds;
+    // 修改数
     int changes;
 };
 
@@ -1316,16 +1318,23 @@ struct redisServer {
                                       to child process. */
     sds aof_child_diff;             /* AOF diff accumulator child side. */
     /* RDB persistence */
+    // RDB持久化相关的参数
+    // 距离上次成功保存，服务器对数据库状态进行了多少次修改
     long long dirty;                /* Changes to DB from the last save */
+    // 
     long long dirty_before_bgsave;  /* Used to restore dirty on failed BGSAVE */
     pid_t rdb_child_pid;            /* PID of RDB saving child */
+    // RDB文件的保存条件
     struct saveparam *saveparams;   /* Save points array for RDB */
+    // 保存条件的长度
     int saveparamslen;              /* Number of saving points */
+    
     char *rdb_filename;             /* Name of RDB file */
     int rdb_compression;            /* Use compression in RDB? */
     int rdb_checksum;               /* Use RDB checksum? */
     int rdb_del_sync_files;         /* Remove RDB files used only for SYNC if
                                        the instance does not use persistence. */
+    // 上次成功保存执行的时间
     time_t lastsave;                /* Unix time of last successful save */
     time_t lastbgsave_try;          /* Unix time of last attempted bgsave */
     time_t rdb_save_time_last;      /* Time used by last RDB save run. */

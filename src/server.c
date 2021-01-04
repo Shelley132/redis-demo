@@ -1956,7 +1956,7 @@ void cronUpdateMemoryStats() {
  * so in order to throttle execution of things we want to do less frequently
  * a macro is used: run_with_period(milliseconds) { .... }
  */
-
+// Redis的服务器周期性操作函数，默认100ms执行一次
 int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
     int j;
     UNUSED(eventLoop);
@@ -2063,12 +2063,15 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
     }
 
     /* Check if a background saving or AOF rewrite in progress terminated. */
+    // 检查是否有BGSAVE或BGREWRITEAOF
     if (hasActiveChildProcess() || ldbPendingChildren())
     {
         checkChildrenDone();
     } else {
         /* If there is not a background saving/rewrite in progress check if
          * we have to save/rewrite now. */
+        // 没有在执行的BGSAVE或BGREWRITEAOF命令
+        // 遍历所有的保存条件
         for (j = 0; j < server.saveparamslen; j++) {
             struct saveparam *sp = server.saveparams+j;
 
@@ -2076,6 +2079,10 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
              * the given amount of seconds, and if the latest bgsave was
              * successful or if, in case of an error, at least
              * CONFIG_BGSAVE_RETRY_DELAY seconds already elapsed. */
+            // 计算距离上次执行保存操作由多少秒
+            // 如果 数据库状态的修改次数 超过 保存条件所设置的次数
+            // 并且 距离上次保存的时间 超过 保存条件所设置的时间
+            // 并且 距离上次尝试保存的时间 超过 重试的时间 或者 上次保存状态为OK
             if (server.dirty >= sp->changes &&
                 server.unixtime-server.lastsave > sp->seconds &&
                 (server.unixtime-server.lastbgsave_try >

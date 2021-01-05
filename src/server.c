@@ -2120,12 +2120,15 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
 
     /* AOF postponed flush: Try at every cron cycle if the slow fsync
      * completed. */
+    // AOF 推迟刷新：如果慢fsync完成，在每次定时循环尝试
     if (server.aof_flush_postponed_start) flushAppendOnlyFile(0);
 
     /* AOF write errors: in this case we have a buffer to flush as well and
      * clear the AOF error in case of success to make the DB writable again,
      * however to try every second is enough in case of 'hz' is set to
      * a higher frequency. */
+    // 在这种情况下，我们也有一个缓冲区要刷新，并在成功使数据库再次可写的情况下清除AOF错误，
+    // 但是在'hz'设置为更高频率的情况下，每秒钟尝试一次就足够了。
     run_with_period(1000) {
         if (server.aof_last_write_status == C_ERR)
             flushAppendOnlyFile(0);

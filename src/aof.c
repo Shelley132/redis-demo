@@ -335,6 +335,7 @@ ssize_t aofWrite(int fd, const char *buf, size_t len) {
  * However if force is set to 1 we'll write regardless of the background
  * fsync. */
 #define AOF_WRITE_LOG_ERROR_RATE 30 /* Seconds between errors logging. */
+// 刷盘
 void flushAppendOnlyFile(int force) {
     ssize_t nwritten;
     int sync_in_progress = 0;
@@ -346,6 +347,10 @@ void flushAppendOnlyFile(int force) {
          * called only when aof buffer is not empty, so if users
          * stop write commands before fsync called in one second,
          * the data in page cache cannot be flushed in time. */
+        // 即使aof_buf是空的，也要检查我们是否需要fsync，
+        // 因为之前在AOF_FSYNC_EVERYSEC模式下，fsync只会在aof_buf不为空的情况下调用，
+        // 因此如果用户在fsync调用前一秒停止写命令，页缓存中的数据就不能及时刷盘
+        // 啥意思？？？
         if (server.aof_fsync == AOF_FSYNC_EVERYSEC &&
             server.aof_fsync_offset != server.aof_current_size &&
             server.unixtime > server.aof_last_fsync &&
@@ -363,15 +368,18 @@ void flushAppendOnlyFile(int force) {
         /* With this append fsync policy we do background fsyncing.
          * If the fsync is still in progress we can try to delay
          * the write for a couple of seconds. */
+        // 如果fsyn还在进行，尝试延迟几秒写入
         if (sync_in_progress) {
             if (server.aof_flush_postponed_start == 0) {
                 /* No previous write postponing, remember that we are
                  * postponing the flush and return. */
+                // 之前没有写入延迟，就记录当前延迟
                 server.aof_flush_postponed_start = server.unixtime;
                 return;
             } else if (server.unixtime - server.aof_flush_postponed_start < 2) {
                 /* We were already waiting for fsync to finish, but for less
                  * than two seconds this is still ok. Postpone again. */
+                // 距离上次等待不到2秒，就还ok，继续延迟
                 return;
             }
             /* Otherwise fall trough, and go write since we can't wait
@@ -385,7 +393,7 @@ void flushAppendOnlyFile(int force) {
      * While this will save us against the server being killed I don't think
      * there is much to do about the whole server stopping for power problems
      * or alike */
-
+    // 
     if (server.aof_flush_sleep && sdslen(server.aof_buf)) {
         usleep(server.aof_flush_sleep);
     }
@@ -410,6 +418,7 @@ void flushAppendOnlyFile(int force) {
     /* We performed the write so reset the postponed flush sentinel to zero. */
     server.aof_flush_postponed_start = 0;
 
+    // 如果写入的长度与aof_buf长度不一致，记录错误
     if (nwritten != (ssize_t)sdslen(server.aof_buf)) {
         static time_t last_write_error_log = 0;
         int can_log = 0;
@@ -581,12 +590,14 @@ sds catAppendOnlyExpireAtCommand(sds buf, struct redisCommand *cmd, robj *key, r
     return buf;
 }
 
+// 追加aof_buf入口
 void feedAppendOnlyFile(struct redisCommand *cmd, int dictid, robj **argv, int argc) {
     sds buf = sdsempty();
     robj *tmpargv[3];
 
     /* The DB this command was targeting is not the same as the last command
      * we appended. To issue a SELECT command is needed. */
+    // 操作的DB与上次命令追加的DB是否一致，不一致则追加SELECT命令
     if (dictid != server.aof_selected_db) {
         char seldb[64];
 
@@ -596,6 +607,7 @@ void feedAppendOnlyFile(struct redisCommand *cmd, int dictid, robj **argv, int a
         server.aof_selected_db = dictid;
     }
 
+    // 命令的转换
     if (cmd->proc == expireCommand || cmd->proc == pexpireCommand ||
         cmd->proc == expireatCommand) {
         /* Translate EXPIRE/PEXPIRE/EXPIREAT into PEXPIREAT */
@@ -609,6 +621,7 @@ void feedAppendOnlyFile(struct redisCommand *cmd, int dictid, robj **argv, int a
         decrRefCount(tmpargv[0]);
         buf = catAppendOnlyExpireAtCommand(buf,cmd,argv[1],argv[2]);
     } else if (cmd->proc == setCommand && argc > 3) {
+        // 参数超过3个的set，也就是带有过期时间的set，类似于setex/psetex
         int i;
         robj *exarg = NULL, *pxarg = NULL;
         for (i = 3; i < argc; i ++) {
@@ -646,6 +659,7 @@ void feedAppendOnlyFile(struct redisCommand *cmd, int dictid, robj **argv, int a
      * accumulate the differences between the child DB and the current one
      * in a buffer, so that when the child process will do its work we
      * can append the differences to the new append only file. */
+    // 是否有AOF重写子进程正在进行，如果有，需要将buf中的数据追加到aof_rewrite_buf
     if (server.aof_child_pid != -1)
         aofRewriteBufferAppend((unsigned char*)buf,sdslen(buf));
 
@@ -712,6 +726,7 @@ void freeFakeClientArgv(struct client *c) {
     c->argv_len_sum = 0;
 }
 
+// 不带网络连接的伪客户端
 void freeFakeClient(struct client *c) {
     sdsfree(c->querybuf);
     listRelease(c->reply);

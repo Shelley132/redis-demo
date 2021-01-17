@@ -47,6 +47,8 @@
 
 /* Include the best multiplexing layer supported by this system.
  * The following should be ordered by performances, descending. */
+// Redis 在 I/O 多路复用程序的实现源码中用 #include 宏定义了相应的规则， 
+// 程序会在编译时自动选择系统中性能最高的 I/O 多路复用函数库来作为 Redis 的 I/O 多路复用程序的底层实现
 #ifdef HAVE_EVPORT
 #include "ae_evport.c"
 #else

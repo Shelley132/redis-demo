@@ -15,6 +15,7 @@ Redis的服务器进程就是一个事件循环，这个循环中的文件事件
 flushAppendOnlyFile函数实现AOF文件写入，其行为由服务器配置的appendfsync选项的值来决定
 
 [appendfsync选项](https://redislabs.com/ebook/part-2-core-concepts/chapter-4-keeping-data-safe-and-ensuring-performance/4-1-persistence-options/4-1-2-append-only-file-persistence/) 与MySQLinnodb_flush_log_at_trx_commit类似
+
 - always
   - 将aof_buf中的所有内容写入并同步到AOF文件
 - everysec 默认值
@@ -22,7 +23,8 @@ flushAppendOnlyFile函数实现AOF文件写入，其行为由服务器配置的a
 - no
   - 将aof_buf中的所有内容写入AOF文件，但不进行同步，何时同步由操作系统决定
 
-flushAppendOnlyFile 刷盘 
+flushAppendOnlyFile 刷盘
+
 - 问题： 为什么在aof_buf为空的时候还要检查是否需要fsync?
 
 ## AOF文件的载入与数据还原
@@ -52,4 +54,3 @@ flushAppendOnlyFile 刷盘
   增加AOF重写缓冲区，在服务器创建子进程后开始使用。当子进程完成AOF重写后，向父进程发送一个信号，父进程接到信号后，调用信号处理函数，执行以下工作
   - 将AOF重写缓冲区的内容写入新AOF文件中
   - 对新的AOF文件改名，原子覆盖现有AOF文件，完成新旧AOF文件的替换
-

@@ -122,10 +122,14 @@ int aeCreateFileEvent(aeEventLoop *eventLoop, int fd, int mask,
         aeFileProc *proc, void *clientData);
 void aeDeleteFileEvent(aeEventLoop *eventLoop, int fd, int mask);
 int aeGetFileEvents(aeEventLoop *eventLoop, int fd);
+// 接受一个毫秒数和一个时间事件处理器proc作为参数，
+// 将一个新的时间事件添加到服务器，这个新的时间事件将在当前事件的milliseconds毫秒之后到达，而事件的处理器为proc
 long long aeCreateTimeEvent(aeEventLoop *eventLoop, long long milliseconds,
         aeTimeProc *proc, void *clientData,
         aeEventFinalizerProc *finalizerProc);
+// 接受一个时间事件ID作为参数，然后从服务器中删除该ID所对应的时间事件
 int aeDeleteTimeEvent(aeEventLoop *eventLoop, long long id);
+// 时间事件的执行器，遍历所有已到达的时间事件，并调用这些事件的处理器。
 int aeProcessEvents(aeEventLoop *eventLoop, int flags);
 int aeWait(int fd, int mask, long long milliseconds);
 void aeMain(aeEventLoop *eventLoop);
